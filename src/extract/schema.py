@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,12 @@ from paper_pipeline.errors import ErrorCode, PipelineError
 
 
 def load_schema(path: Path) -> tuple[dict[str, Any], str]:
-    raw = path.read_bytes()
+    if path.exists():
+        raw = path.read_bytes()
+    elif path.parent.name == "schemas" and path.name in {"catalysis.json", "generic.json"}:
+        raw = resources.files("paper_pipeline").joinpath("schemas", path.name).read_bytes()
+    else:
+        raise PipelineError(ErrorCode.FILE_NOT_FOUND, f"Schema file not found: {path}")
     schema = json.loads(raw)
     jsonschema.Draft202012Validator.check_schema(schema)
     return schema, hashlib.sha256(raw).hexdigest()

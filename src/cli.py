@@ -54,6 +54,13 @@ def init(config: Path = Path("pipeline.toml"), force: bool = False) -> None:
     config.parent.mkdir(parents=True, exist_ok=True)
     template = resources.files("paper_pipeline").joinpath("pipeline.example.toml")
     config.write_bytes(template.read_bytes())
+    schema_dir = config.parent / "schemas"
+    schema_dir.mkdir(parents=True, exist_ok=True)
+    packaged_schemas = resources.files("paper_pipeline").joinpath("schemas")
+    for name in ("catalysis.json", "generic.json"):
+        destination = schema_dir / name
+        if force or not destination.exists():
+            destination.write_bytes(packaged_schemas.joinpath(name).read_bytes())
     settings = load_settings(config)
     settings.papers_dir.mkdir(parents=True, exist_ok=True)
     db_path = Path(settings.database_url.removeprefix("sqlite:///"))

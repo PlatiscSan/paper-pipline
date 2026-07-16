@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Generic paper extraction",
+  "type": "object",
+  "properties": {
+    "bibliographic": {"type": ["object", "null"]},
+    "research_scope": {"type": ["string", "null"]},
+    "methods": {"type": "array", "items": {"type": "object"}},
+    "findings": {"type": "array", "items": {"type": "object"}},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "data_quality_notes": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["bibliographic", "research_scope", "methods", "findings", "limitations", "data_quality_notes"],
+  "additionalProperties": false
+}

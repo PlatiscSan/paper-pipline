@@ -1,7 +1,7 @@
 import pytest
 from paper_pipeline.errors import PipelineError
 from paper_pipeline.extract.chunking import chunk_pages
-from paper_pipeline.extract.schema import parse_json_object, validate
+from paper_pipeline.extract.schema import load_schema, parse_json_object, validate
 
 
 def test_json_recovery() -> None:
@@ -22,3 +22,10 @@ def test_schema_validation() -> None:
 def test_page_chunking() -> None:
     chunks = chunk_pages(["[PDF_PAGE 1]\nabc", "[PDF_PAGE 2]\ndef"], 22)
     assert chunks == ["[PDF_PAGE 1]\nabc", "[PDF_PAGE 2]\ndef"]
+
+
+def test_missing_default_schema_falls_back_to_package(tmp_path) -> None:
+    schema, digest = load_schema(tmp_path / "schemas" / "catalysis.json")
+
+    assert schema["title"] == "Catalysis paper extraction"
+    assert len(digest) == 64

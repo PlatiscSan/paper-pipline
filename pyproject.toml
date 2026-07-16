@@ -42,7 +42,7 @@ paper_pipeline = "src"
 "paper_pipeline.search" = "src/search"
 
 [tool.setuptools.package-data]
-paper_pipeline = ["pipeline.example.toml"]
+paper_pipeline = ["pipeline.example.toml", "schemas/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

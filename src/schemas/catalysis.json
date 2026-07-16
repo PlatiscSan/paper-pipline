@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Catalysis paper extraction",
+  "type": "object",
+  "properties": {
+    "bibliographic": {"type": ["object", "null"]},
+    "research_scope": {"type": ["string", "null"]},
+    "catalyst_formulations": {"type": "array", "items": {"type": "object"}},
+    "reaction_conditions": {"type": "array", "items": {"type": "object"}},
+    "performance_metrics": {"type": "array", "items": {"type": "object"}},
+    "characterization_methods": {"type": "array", "items": {"type": "object"}},
+    "mechanistic_interpretation": {"type": "array", "items": {"type": "object"}},
+    "deactivation_and_stability": {"type": "array", "items": {"type": "object"}},
+    "key_findings": {"type": "array", "items": {"type": "object"}},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "data_quality_notes": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["bibliographic", "research_scope", "catalyst_formulations", "reaction_conditions", "performance_metrics", "characterization_methods", "mechanistic_interpretation", "deactivation_and_stability", "key_findings", "limitations", "data_quality_notes"],
+  "additionalProperties": false
+}

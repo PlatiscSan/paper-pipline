@@ -12,3 +12,5 @@ def test_init_uses_installed_package_resource(tmp_path: Path) -> None:
     assert config.exists()
     assert "database_url" in config.read_text(encoding="utf-8")
     assert (tmp_path / "data" / "papers.db").exists()
+    assert (tmp_path / "schemas" / "catalysis.json").exists()
+    assert (tmp_path / "schemas" / "generic.json").exists()
