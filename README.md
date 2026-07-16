@@ -98,6 +98,9 @@ paper-pipeline export --format jsonl --output exports/results.jsonl --only-extra
 paper-pipeline doctor
 ```
 
+Downloads log batch start and periodic progress. With `--verbose`, every completed paper is logged;
+when no request completes for 15 seconds, a heartbeat reports completed and active task counts.
+
 Repeat `--keywords` for multiple terms. `--total` is the result target per keyword; it is divided
 deterministically over selected sources, with earlier source names receiving any remainder. When a
 source returns fewer records than allocated, the deficit is reassigned in configured source order

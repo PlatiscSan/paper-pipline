@@ -1,6 +1,7 @@
 """Paper-level concurrent resolution and download orchestration."""
 
 import asyncio
+import logging
 
 import aiohttp
 from paper_pipeline.config import Settings
@@ -10,6 +11,8 @@ from paper_pipeline.download.client import DownloadClient
 from paper_pipeline.download.models import DownloadResult
 from paper_pipeline.download.resolver import Resolver
 from paper_pipeline.download.storage import destination, is_pdf
+
+logger = logging.getLogger(__name__)
 
 
 class DownloadService:
@@ -22,8 +25,16 @@ class DownloadService:
         recovered = self.repository.recover_in_progress("download")
         papers = self.repository.candidates("download", include_failed)
         if not papers:
+            logger.info("No pending downloads; use retry to requeue previous failures")
             return {"candidates": 0, "recovered": recovered}
-        sem = asyncio.Semaphore(concurrency or self.settings.downloader.concurrency)
+        effective_concurrency = concurrency or self.settings.downloader.concurrency
+        sem = asyncio.Semaphore(effective_concurrency)
+        logger.info(
+            "Download batch started: candidates=%d concurrency=%d recovered=%d",
+            len(papers),
+            effective_concurrency,
+            recovered,
+        )
         timeout = aiohttp.ClientTimeout(total=300, connect=30)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             resolver = Resolver(
@@ -42,10 +53,40 @@ class DownloadService:
                 async with sem:
                     return await self._one(paper, resolver, client)
 
-            statuses = await asyncio.gather(*(one(p) for p in papers))
+            pending = {asyncio.create_task(one(p)) for p in papers}
+            statuses: list[str] = []
+            while pending:
+                done, pending = await asyncio.wait(
+                    pending, timeout=15, return_when=asyncio.FIRST_COMPLETED
+                )
+                if not done:
+                    logger.info(
+                        "Download heartbeat: completed=%d/%d active=%d",
+                        len(statuses),
+                        len(papers),
+                        len(pending),
+                    )
+                    continue
+                for task in done:
+                    status = await task
+                    statuses.append(status)
+                    logger.debug(
+                        "Download item completed: progress=%d/%d status=%s",
+                        len(statuses),
+                        len(papers),
+                        status,
+                    )
+                if len(statuses) == len(papers) or len(statuses) % 10 == 0:
+                    logger.info(
+                        "Download progress: completed=%d/%d active=%d",
+                        len(statuses),
+                        len(papers),
+                        len(pending),
+                    )
         summary = {name: statuses.count(name) for name in set(statuses)}
         summary["candidates"] = len(papers)
         summary["recovered"] = recovered
+        logger.info("Download batch completed: %s", summary)
         return summary
 
     async def _one(self, paper: Paper, resolver: Resolver, client: DownloadClient) -> str:
