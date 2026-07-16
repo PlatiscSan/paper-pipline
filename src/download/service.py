@@ -41,6 +41,9 @@ class DownloadService:
                 session,
                 self.settings.academic_email,
                 self.settings.downloader.semantic_scholar_api_key.get_secret_value(),
+                self.settings.downloader.springer_nature_api_key.get_secret_value(),
+                self.settings.downloader.elsevier_api_key.get_secret_value(),
+                self.settings.downloader.use_publisher_apis,
             )
             client = DownloadClient(
                 session,

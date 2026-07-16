@@ -110,6 +110,13 @@ Available source names are `arxiv`, `pubmed`, `crossref`, `europe_pmc`, `semanti
 `openalex`. OpenAlex currently requires a free API key in `crawler.openalex_api_key`; Semantic
 Scholar can use `crawler.semantic_scholar_api_key` for higher and more reliable rate limits.
 
+The downloader also understands publisher-operated routes. PLOS DOI downloads require no key.
+Springer Nature's Open Access API uses `downloader.springer_nature_api_key`; Elsevier Article
+Retrieval uses `downloader.elsevier_api_key`. Both keys are entered directly in `pipeline.toml`.
+`use_publisher_apis = false` disables all publisher-specific routes. Elsevier still decides access
+per article and may return 403; the pipeline then tries the remaining OA candidates and never uses
+institutional tokens or subscription sessions.
+
 CSV import recognizes `title, authors, year, abstract, url, source, doi, pmid, pmcid, arxiv_id,
 pdf_url, file, resolved_url, status`. DOI, PMCID, PMID, arXiv ID, normalized URL, then normalized
 title define deduplication priority. Valid existing PDF paths are registered without downloading.
@@ -139,7 +146,8 @@ AI credentials.
 
 - Scanned PDFs without embedded text fail with `PDF_TEXT_EMPTY`; cloud OCR is intentionally absent.
 - Landing-page PDF discovery supports standard `citation_pdf_url`; JavaScript-only pages are not
-  browser-automated.
+  browser-automated. Ordinary public links labelled Open PDF, View PDF, Download PDF, or Full Text
+  PDF are followed, while login, purchase, subscription, and institutional-access links are skipped.
 - Open-access metadata can be incomplete or stale. `REMOTE_FORBIDDEN` and `REMOTE_NOT_FOUND` are
   kept distinct from `NO_OPEN_ACCESS_PDF` and local processing failures.
 - Provider-specific deviations from OpenAI-compatible Files/Responses semantics may require
@@ -148,6 +156,7 @@ AI credentials.
 
 ## Security and legal scope
 
-Only explicitly public candidates from metadata, arXiv, PMC OA, Unpaywall, Semantic Scholar, and
-publisher citation metadata are considered. Local configuration is ignored by Git. Authorization
-headers and keys are never printed or persisted in SQLite.
+Only explicitly public candidates from metadata, arXiv, PMC OA, Unpaywall, Semantic Scholar, PLOS,
+Springer Nature OA, Elsevier's API, and publisher citation metadata are considered. Local
+configuration is ignored by Git. Authorization headers and keys are never printed or persisted in
+SQLite. The downloader does not supply subscription cookies or institutional authorization.

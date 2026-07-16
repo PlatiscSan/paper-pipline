@@ -31,6 +31,9 @@ class DownloaderConfig(BaseModel):
     retries: int = 3
     max_size_mb: int = 100
     semantic_scholar_api_key: SecretStr = SecretStr("")
+    springer_nature_api_key: SecretStr = SecretStr("")
+    elsevier_api_key: SecretStr = SecretStr("")
+    use_publisher_apis: bool = True
     use_unpaywall: bool = True
     use_semantic_scholar: bool = True
     use_crossref: bool = True

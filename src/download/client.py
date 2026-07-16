@@ -58,7 +58,9 @@ class DownloadClient:
 
     async def _request(self, candidate: Candidate, target: Path, part: Path) -> DownloadResult:
         offset = part.stat().st_size if part.exists() else 0
-        headers = {"Range": f"bytes={offset}-"} if offset else {}
+        headers = dict(candidate.headers)
+        if offset:
+            headers["Range"] = f"bytes={offset}-"
         async with self.session.get(candidate.url, headers=headers) as response:
             if response.status in {429, 500, 502, 503, 504}:
                 return DownloadResult(

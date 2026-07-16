@@ -1,17 +1,81 @@
 """Resolve only explicitly open-access PDF candidates."""
 
 import re
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlsplit
 
 import aiohttp
 from paper_pipeline.db.models import Paper
 from paper_pipeline.download.models import Candidate
 
+PDF_LABEL = re.compile(r"\b(?:open|view|download|full\s*text)?\s*pdf\b", re.I)
+BLOCKED_LABELS = ("login", "log in", "sign in", "purchase", "subscribe", "institutional")
+
+
+class _PDFLinkParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.meta_urls: list[str] = []
+        self.links: list[tuple[str, str]] = []
+        self._href = ""
+        self._label: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = {key.lower(): value or "" for key, value in attrs}
+        if (
+            tag.lower() == "meta"
+            and values.get("name", "").lower() == "citation_pdf_url"
+            and values.get("content")
+        ):
+            self.meta_urls.append(values["content"])
+        if tag.lower() == "a":
+            self._href = values.get("href") or values.get("data-href") or values.get("data-url", "")
+            self._label = [values.get("title", ""), values.get("aria-label", "")]
+
+    def handle_data(self, data: str) -> None:
+        if self._href:
+            self._label.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "a" and self._href:
+            self.links.append((self._href, " ".join(self._label)))
+            self._href = ""
+            self._label = []
+
+
+def landing_pdf_candidates(html: str, base_url: str) -> list[Candidate]:
+    """Extract public PDF metadata and ordinary links without executing JavaScript."""
+    parser = _PDFLinkParser()
+    parser.feed(html)
+    result = [Candidate(urljoin(base_url, url), "citation_pdf_url") for url in parser.meta_urls]
+    for href, label in parser.links:
+        absolute = urljoin(base_url, href)
+        combined = f"{absolute} {label}".lower()
+        if urlsplit(absolute).scheme not in {"http", "https"}:
+            continue
+        if any(blocked in combined for blocked in BLOCKED_LABELS):
+            continue
+        if ".pdf" in urlsplit(absolute).path.lower() or PDF_LABEL.search(label):
+            result.append(Candidate(absolute, "landing_pdf_link"))
+    unique: dict[str, Candidate] = {}
+    for candidate in result:
+        unique.setdefault(candidate.url, candidate)
+    return list(unique.values())[:20]
+
 
 class Resolver:
     def __init__(
-        self, session: aiohttp.ClientSession, email: str = "", semantic_key: str = ""
+        self,
+        session: aiohttp.ClientSession,
+        email: str = "",
+        semantic_key: str = "",
+        springer_key: str = "",
+        elsevier_key: str = "",
+        use_publisher_apis: bool = True,
     ) -> None:
         self.session, self.email, self.semantic_key = session, email, semantic_key
+        self.springer_key, self.elsevier_key = springer_key, elsevier_key
+        self.use_publisher_apis = use_publisher_apis
 
     async def candidates(self, paper: Paper) -> list[Candidate]:
         result: list[Candidate] = []
@@ -31,6 +95,12 @@ class Resolver:
             result.extend(await self._unpaywall(paper.doi))
         if paper.doi and self.semantic_key:
             result.extend(await self._semantic(paper.doi))
+        if paper.doi and self.use_publisher_apis:
+            result.extend(self._plos(paper.doi))
+            if self.springer_key:
+                result.extend(await self._springer(paper.doi))
+            if self.elsevier_key:
+                result.extend(self._elsevier(paper.doi))
         if paper.url:
             result.extend(await self._landing(paper.url))
         unique: dict[str, Candidate] = {}
@@ -74,15 +144,71 @@ class Resolver:
             value = (await r.json()).get("openAccessPdf") or {}
             return [Candidate(value["url"], "semantic_scholar")] if value.get("url") else []
 
+    def _plos(self, doi: str) -> list[Candidate]:
+        """Build the publisher-documented printable PDF URL for PLOS DOIs."""
+        normalized = doi.strip().lower()
+        match = re.fullmatch(r"10\.1371/journal\.(p[a-z]+)\.[a-z0-9.]+", normalized)
+        if not match:
+            return []
+        journal = {
+            "pbio": "plosbiology",
+            "pcbi": "ploscompbiol",
+            "pgen": "plosgenetics",
+            "pmed": "plosmedicine",
+            "pntd": "plosntds",
+            "ppat": "plospathogens",
+            "pone": "plosone",
+        }.get(match.group(1))
+        if not journal:
+            return []
+        return [
+            Candidate(
+                f"https://journals.plos.org/{journal}/article/file?id={normalized}&type=printable",
+                "plos",
+            )
+        ]
+
+    async def _springer(self, doi: str) -> list[Candidate]:
+        """Ask Springer Nature's OA API for explicitly advertised PDF URLs."""
+        try:
+            async with self.session.get(
+                "https://api.springernature.com/openaccess/json",
+                params={"api_key": self.springer_key, "q": f"doi:{doi}"},
+            ) as response:
+                if response.status != 200:
+                    return []
+                records = (await response.json()).get("records") or []
+        except (aiohttp.ClientError, ValueError):
+            return []
+        urls: list[str] = []
+        for record in records:
+            for value in record.get("url") or []:
+                if isinstance(value, dict):
+                    candidate_url = str(value.get("value") or value.get("url") or "")
+                    kind = str(value.get("format") or "").lower()
+                else:
+                    candidate_url, kind = str(value), ""
+                if candidate_url and ("pdf" in kind or ".pdf" in candidate_url.lower()):
+                    urls.append(candidate_url)
+        return [Candidate(url, "springer_nature_oa") for url in dict.fromkeys(urls)]
+
+    def _elsevier(self, doi: str) -> list[Candidate]:
+        """Use Elsevier's official retrieval API; the API enforces article entitlement."""
+        return [
+            Candidate(
+                f"https://api.elsevier.com/content/article/doi/{doi}",
+                "elsevier_api",
+                {"Accept": "application/pdf", "X-ELS-APIKey": self.elsevier_key},
+            )
+        ]
+
     async def _landing(self, url: str) -> list[Candidate]:
         try:
             async with self.session.get(url) as response:
                 if response.status != 200:
                     return []
                 body = await response.text(errors="ignore")
-            match = re.search(
-                r'<meta[^>]+name=["\']citation_pdf_url["\'][^>]+content=["\']([^"\']+)', body, re.I
-            )
-            return [Candidate(match.group(1), "citation_pdf_url")] if match else []
+                final_url = str(response.url)
+            return landing_pdf_candidates(body, final_url)
         except aiohttp.ClientError:
             return []
