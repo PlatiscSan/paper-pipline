@@ -3,12 +3,14 @@ papers_dir = "data/papers"
 academic_email = "researcher@example.org"
 
 [crawler]
-sources = ["arxiv", "pubmed", "crossref", "europe_pmc", "semantic_scholar", "openalex"]
+sources = ["web_of_science", "pubmed"]
+peer_reviewed_only = true
 total = 100
 concurrency = 5
 delay_seconds = 0.5
 semantic_scholar_api_key = ""
 openalex_api_key = ""
+web_of_science_api_key = ""
 
 [downloader]
 concurrency = 10
@@ -17,7 +19,6 @@ retries = 3
 max_size_mb = 100
 semantic_scholar_api_key = ""
 springer_nature_api_key = ""
-elsevier_api_key = ""
 use_publisher_apis = true
 use_unpaywall = true
 use_semantic_scholar = true

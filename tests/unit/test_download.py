@@ -52,17 +52,10 @@ async def test_pmc_includes_europe_pmc_full_text_candidate() -> None:
 
 @pytest.mark.asyncio
 async def test_publisher_apis_are_routed_by_doi_owner() -> None:
-    resolver = Resolver(None, springer_key="springer", elsevier_key="elsevier")  # type: ignore[arg-type]
+    resolver = Resolver(None, springer_key="springer")  # type: ignore[arg-type]
     resolver._springer = AsyncMock(return_value=[])  # type: ignore[method-assign]
     wiley = Paper(doi="10.1002/advs.1", title="Wiley", canonical_key="doi:10.1002/advs.1")
-    elsevier = Paper(
-        doi="10.1016/j.apcatb.2024.1",
-        title="Elsevier",
-        canonical_key="doi:10.1016/j.apcatb.2024.1",
-    )
-
     assert not [item for item in await resolver.candidates(wiley) if "api" in item.method]
-    assert [item.method for item in await resolver.candidates(elsevier)] == ["elsevier_api"]
     resolver._springer.assert_not_awaited()
 
 
@@ -76,15 +69,6 @@ def test_plos_publisher_pdf_candidate() -> None:
         "https://journals.plos.org/plosone/article/file"
         "?id=10.1371/journal.pone.0170929&type=printable"
     )
-
-
-def test_elsevier_candidate_keeps_api_key_in_header() -> None:
-    resolver = Resolver(None, elsevier_key="secret")  # type: ignore[arg-type]
-
-    candidate = resolver._elsevier("10.1016/j.example.2024.1")[0]
-
-    assert candidate.headers == {"Accept": "application/pdf", "X-ELS-APIKey": "secret"}
-    assert "secret" not in candidate.url
 
 
 @pytest.mark.asyncio

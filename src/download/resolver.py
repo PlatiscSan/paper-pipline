@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 PDF_LABEL = re.compile(r"\b(?:open|view|download|full\s*text)?\s*pdf\b", re.I)
 BLOCKED_LABELS = ("login", "log in", "sign in", "purchase", "subscribe", "institutional")
 SPRINGER_DOI_PREFIXES = ("10.1007/", "10.1038/", "10.1186/")
-ELSEVIER_DOI_PREFIXES = ("10.1006/", "10.1016/", "10.1053/", "10.1054/", "10.1067/", "10.1078/")
 
 
 class _PDFLinkParser(HTMLParser):
@@ -75,11 +74,10 @@ class Resolver:
         email: str = "",
         semantic_key: str = "",
         springer_key: str = "",
-        elsevier_key: str = "",
         use_publisher_apis: bool = True,
     ) -> None:
         self.session, self.email, self.semantic_key = session, email, semantic_key
-        self.springer_key, self.elsevier_key = springer_key, elsevier_key
+        self.springer_key = springer_key
         self.use_publisher_apis = use_publisher_apis
 
     async def candidates(self, paper: Paper) -> list[Candidate]:
@@ -113,19 +111,6 @@ class Resolver:
             elif normalized_doi.startswith(SPRINGER_DOI_PREFIXES):
                 logger.debug(
                     "Publisher lookup skipped: doi=%s publisher=springer_nature reason=no_api_key",
-                    paper.doi,
-                )
-            if normalized_doi.startswith(ELSEVIER_DOI_PREFIXES) and self.elsevier_key:
-                elsevier = self._elsevier(normalized_doi)
-                logger.debug(
-                    "Publisher lookup: doi=%s publisher=elsevier candidates=%d",
-                    paper.doi,
-                    len(elsevier),
-                )
-                result.extend(elsevier)
-            elif normalized_doi.startswith(ELSEVIER_DOI_PREFIXES):
-                logger.debug(
-                    "Publisher lookup skipped: doi=%s publisher=elsevier reason=no_api_key",
                     paper.doi,
                 )
         if paper.url:
@@ -236,16 +221,6 @@ class Resolver:
             len(candidates),
         )
         return candidates
-
-    def _elsevier(self, doi: str) -> list[Candidate]:
-        """Use Elsevier's official retrieval API; the API enforces article entitlement."""
-        return [
-            Candidate(
-                f"https://api.elsevier.com/content/article/doi/{doi}",
-                "elsevier_api",
-                {"Accept": "application/pdf", "X-ELS-APIKey": self.elsevier_key},
-            )
-        ]
 
     async def _landing(self, url: str) -> list[Candidate]:
         try:

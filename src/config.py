@@ -10,19 +10,14 @@ from pydantic import BaseModel, Field, SecretStr, model_validator
 
 
 class CrawlerConfig(BaseModel):
-    sources: list[str] = [
-        "arxiv",
-        "pubmed",
-        "crossref",
-        "europe_pmc",
-        "semantic_scholar",
-        "openalex",
-    ]
+    sources: list[str] = ["web_of_science", "pubmed"]
+    peer_reviewed_only: bool = True
     total: int = 100
     concurrency: int = 5
     delay_seconds: float = 0.5
     semantic_scholar_api_key: SecretStr = SecretStr("")
     openalex_api_key: SecretStr = SecretStr("")
+    web_of_science_api_key: SecretStr = SecretStr("")
 
 
 class DownloaderConfig(BaseModel):
@@ -32,7 +27,6 @@ class DownloaderConfig(BaseModel):
     max_size_mb: int = 100
     semantic_scholar_api_key: SecretStr = SecretStr("")
     springer_nature_api_key: SecretStr = SecretStr("")
-    elsevier_api_key: SecretStr = SecretStr("")
     use_publisher_apis: bool = True
     use_unpaywall: bool = True
     use_semantic_scholar: bool = True

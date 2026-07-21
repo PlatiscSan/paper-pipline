@@ -1,7 +1,7 @@
 # Paper Pipeline
 
-`paper-pipeline` is a Python 3.11+ command-line pipeline for searching arXiv, PubMed,
-Crossref, Europe PMC, Semantic Scholar, and OpenAlex,
+`paper-pipeline` is a Python 3.11+ command-line pipeline for searching peer-reviewed
+Web of Science Core Collection and PubMed journal records,
 downloading only openly accessible PDFs, extracting schema-validated data through any
 OpenAI-compatible provider, and persisting every durable state transition in SQLite.
 
@@ -85,6 +85,7 @@ Both `python -m paper_pipeline --help` and `paper-pipeline --help` are supported
 paper-pipeline init
 paper-pipeline search --keywords "dry reforming of methane" --sources arxiv,pubmed --year 2022-2026 --total 200
 paper-pipeline import-csv --input papers.csv
+paper-pipeline import-local --input C:\path\to\papers
 paper-pipeline download --concurrency 10
 paper-pipeline extract --concurrency 4
 paper-pipeline extract --schema schemas/custom.json
@@ -111,16 +112,21 @@ deterministically over selected sources, with earlier source names receiving any
 source returns fewer records than allocated, the deficit is reassigned in configured source order
 to sources that filled their allocation. Cross-source and cross-keyword results are deduplicated.
 
-Available source names are `arxiv`, `pubmed`, `crossref`, `europe_pmc`, `semantic_scholar`, and
-`openalex`. OpenAlex currently requires a free API key in `crawler.openalex_api_key`; Semantic
-Scholar can use `crawler.semantic_scholar_api_key` for higher and more reliable rate limits.
+The default sources are `web_of_science` and `pubmed`. With `peer_reviewed_only = true`, the CLI
+rejects arXiv and broad aggregators, Web of Science results are limited to Article/Review records,
+and PubMed excludes preprints while selecting journal articles and reviews. Add a Web of Science
+Starter API key as `crawler.web_of_science_api_key`. Legacy source adapters remain available only
+when `peer_reviewed_only = false` is explicitly configured.
 
-The downloader also understands publisher-operated routes. PLOS DOI downloads require no key.
-Springer Nature's Open Access API uses `downloader.springer_nature_api_key`; Elsevier Article
-Retrieval uses `downloader.elsevier_api_key`. Both keys are entered directly in `pipeline.toml`.
-`use_publisher_apis = false` disables all publisher-specific routes. Elsevier still decides access
-per article and may return 403; the pipeline then tries the remaining OA candidates and never uses
-institutional tokens or subscription sessions.
+`import-local` accepts one PDF or a directory (`--recursive/--no-recursive`), reads embedded
+title/author metadata and DOI text when available, copies valid PDFs into managed storage, and
+queues them for extraction. The originals are never modified.
+
+The downloader also understands publisher-operated routes. PLOS DOI downloads require no key and
+Springer Nature's Open Access API uses `downloader.springer_nature_api_key`.
+`use_publisher_apis = false` disables publisher-specific routes. Elsevier Article Retrieval is not
+used as a PDF source because Elsevier support confirms it supplies structured XML/JSON rather than
+complete article PDF files.
 
 CSV import recognizes `title, authors, year, abstract, url, source, doi, pmid, pmcid, arxiv_id,
 pdf_url, file, resolved_url, status`. DOI, PMCID, PMID, arXiv ID, normalized URL, then normalized
@@ -161,7 +167,7 @@ AI credentials.
 
 ## Security and legal scope
 
-Only explicitly public candidates from metadata, arXiv, PMC OA, Unpaywall, Semantic Scholar, PLOS,
-Springer Nature OA, Elsevier's API, and publisher citation metadata are considered. Local
-configuration is ignored by Git. Authorization headers and keys are never printed or persisted in
-SQLite. The downloader does not supply subscription cookies or institutional authorization.
+Only explicitly public PDF candidates from imported metadata, legacy records, PMC OA, Unpaywall,
+PLOS, Springer Nature OA, and publisher citation metadata are considered. Local configuration is
+ignored by Git. Authorization headers and keys are never printed or persisted in SQLite. The
+downloader does not supply subscription cookies or institutional authorization.

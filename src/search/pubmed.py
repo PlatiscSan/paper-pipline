@@ -24,7 +24,12 @@ class PubMedProvider:
     async def search(
         self, keyword: str, limit: int, years: tuple[int, int] | None
     ) -> list[PaperRecord]:
-        term = keyword + (f" AND {years[0]}:{years[1]}[pdat]" if years else "")
+        peer_reviewed = (
+            " AND (journal article[pt] OR review[pt] OR systematic review[pt] "
+            "OR meta-analysis[pt]) NOT preprint[pt]"
+        )
+        term = keyword + peer_reviewed
+        term += f" AND {years[0]}:{years[1]}[pdat]" if years else ""
         params = {
             "db": "pubmed",
             "term": term,

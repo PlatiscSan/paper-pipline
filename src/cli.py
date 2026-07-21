@@ -19,6 +19,7 @@ from paper_pipeline.errors import PipelineError
 from paper_pipeline.export.service import export as export_results
 from paper_pipeline.extract.service import ExtractionService
 from paper_pipeline.importer import import_csv as import_csv_file
+from paper_pipeline.local_importer import import_local_pdfs
 from paper_pipeline.logging import configure
 from paper_pipeline.search.base import parse_years
 from paper_pipeline.search.service import SearchService
@@ -54,6 +55,8 @@ def make_search_service(repository: Repository, settings: Settings) -> SearchSer
         settings.academic_email,
         settings.crawler.semantic_scholar_api_key.get_secret_value(),
         settings.crawler.openalex_api_key.get_secret_value(),
+        settings.crawler.web_of_science_api_key.get_secret_value(),
+        settings.crawler.peer_reviewed_only,
     )
 
 
@@ -116,6 +119,26 @@ def import_csv(
     """Import metadata and existing valid PDFs from CSV."""
     _, repo = context(config)
     console.print(import_csv_file(repo, input))
+
+
+@app.command("import-local")
+def import_local(
+    input: Annotated[
+        Path,
+        typer.Option(
+            "--input",
+            exists=True,
+            readable=True,
+            resolve_path=True,
+            help="A PDF file or directory containing local PDFs.",
+        ),
+    ],
+    recursive: bool = True,
+    config: Path = Path("pipeline.toml"),
+) -> None:
+    """Import local PDFs into managed storage and queue them for extraction."""
+    settings, repo = context(config)
+    console.print(import_local_pdfs(repo, settings.papers_dir, input, recursive))
 
 
 @app.command()

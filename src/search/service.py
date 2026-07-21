@@ -12,6 +12,9 @@ from paper_pipeline.search.europe_pmc import EuropePMCProvider
 from paper_pipeline.search.openalex import OpenAlexProvider
 from paper_pipeline.search.pubmed import PubMedProvider
 from paper_pipeline.search.semantic_scholar import SemanticScholarProvider
+from paper_pipeline.search.web_of_science import WebOfScienceProvider
+
+PEER_REVIEWED_SOURCES = {"web_of_science", "pubmed"}
 
 
 class SearchService:
@@ -23,11 +26,15 @@ class SearchService:
         email: str = "",
         semantic_scholar_api_key: str = "",
         openalex_api_key: str = "",
+        web_of_science_api_key: str = "",
+        peer_reviewed_only: bool = True,
     ) -> None:
         self.repository = repository
         self.email = email
         self.semantic_scholar_api_key = semantic_scholar_api_key
         self.openalex_api_key = openalex_api_key
+        self.web_of_science_api_key = web_of_science_api_key
+        self.peer_reviewed_only = peer_reviewed_only
 
     async def run(
         self,
@@ -40,6 +47,16 @@ class SearchService:
             raise ValueError("at least one search source is required")
         if total < 1:
             raise ValueError("total must be positive")
+        if "web_of_science" in sources and not self.web_of_science_api_key:
+            raise ValueError(
+                "web_of_science requires crawler.web_of_science_api_key in pipeline.toml"
+            )
+        disallowed = sorted(set(sources) - PEER_REVIEWED_SOURCES)
+        if self.peer_reviewed_only and disallowed:
+            raise ValueError(
+                "peer_reviewed_only forbids sources without a strict journal-review filter: "
+                + ", ".join(disallowed)
+            )
         counts = {source: 0 for source in sources}
         initial = allocate(total, sources)
         requested = {
@@ -58,6 +75,7 @@ class SearchService:
                 "europe_pmc": EuropePMCProvider(session, self.email),
                 "semantic_scholar": SemanticScholarProvider(session, self.semantic_scholar_api_key),
                 "openalex": OpenAlexProvider(session, self.openalex_api_key),
+                "web_of_science": WebOfScienceProvider(session, self.web_of_science_api_key),
             }
             unknown = [source for source in sources if source not in providers]
             if unknown:
